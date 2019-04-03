@@ -43,30 +43,31 @@ NS_ASSUME_NONNULL_BEGIN
 
 @implementation EXAppDelegate
 
+@synthesize window = _window;
+
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(nullable NSDictionary *)launchOptions
 {
   CrashlyticsKit.delegate = [ExpoKit sharedInstance]; // this must be set prior to init'ing fabric.
   [Fabric with:@[CrashlyticsKit]];
   [CrashlyticsKit setObjectValue:[EXBuildConstants sharedInstance].expoRuntimeVersion forKey:@"exp_client_version"];
 
-#if __has_include(<EXFacebook/EXFacebook.h>)
-  if ([EXFacebook facebookAppIdFromNSBundle]) {
-    [[FBSDKApplicationDelegate sharedInstance] application:application
-                             didFinishLaunchingWithOptions:launchOptions];
-  }
-#endif
-
   if ([application applicationState] != UIApplicationStateBackground) {
     // App launched in foreground
     [self _setUpUserInterfaceForApplication:application withLaunchOptions:launchOptions];
   }
   [(EXTaskService *)[UMModuleRegistryProvider getSingletonModuleForClass:EXTaskService.class] applicationDidFinishLaunchingWithOptions:launchOptions];
-  return YES;
+  
+  BOOL answer = YES; // only example (default answer could be NO)
+  BOOL superAnswer = [super application:application didFinishLaunchingWithOptions:launchOptions];
+  answer = answer || superAnswer;
+  return answer;
 }
 
 - (void)applicationWillEnterForeground:(UIApplication *)application
 {
   [self _setUpUserInterfaceForApplication:application withLaunchOptions:nil];
+  
+  [super applicationWillEnterForeground:application];
 }
 
 - (void)_setUpUserInterfaceForApplication:(UIApplication *)application withLaunchOptions:(nullable NSDictionary *)launchOptions
@@ -90,6 +91,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)application:(UIApplication *)application performFetchWithCompletionHandler:(void (^)(UIBackgroundFetchResult))completionHandler
 {
   [(EXTaskService *)[UMModuleRegistryProvider getSingletonModuleForClass:EXTaskService.class] runTasksWithReason:UMTaskLaunchReasonBackgroundFetch userInfo:nil completionHandler:completionHandler];
+ 
+  [super application:application performFetchWithCompletionHandler:completionHandler];
 }
 
 #pragma mark - Handling URLs
@@ -98,13 +101,12 @@ NS_ASSUME_NONNULL_BEGIN
 {
   id annotation = options[UIApplicationOpenURLOptionsAnnotationKey];
   NSString *sourceApplication = options[UIApplicationOpenURLOptionsSourceApplicationKey];
-#if __has_include(<GoogleSignIn/GoogleSignIn.h>)
-  if ([[GIDSignIn sharedInstance] handleURL:url
-                          sourceApplication:sourceApplication
-                                 annotation:annotation]) {
-    return YES;
+  
+  BOOL superAnswer = [super application:app openURL:url options:options];
+  if (superAnswer) {
+    return true;
   }
-#endif
+  
 #if __has_include(<ABI32_0_0GoogleSignIn/ABI32_0_0GoogleSignIn.h>)
   if ([[ABI32_0_0GIDSignIn sharedInstance] handleURL:url
                           sourceApplication:sourceApplication
@@ -112,23 +114,9 @@ NS_ASSUME_NONNULL_BEGIN
     return YES;
   }
 #endif
-#if __has_include(<EXAppAuth/EXAppAuth.h>)
-  if ([[EXAppAuth instance] application:app openURL:url options:options]) {
-    return YES;
-  }
-#endif
 #if __has_include(<ABI32_0_0EXAppAuth/ABI32_0_0EXAppAuth.h>)
   if ([[ABI32_0_0EXAppAuth instance] application:app openURL:url options:options]) {
     return YES;
-  }
-#endif
-#if __has_include(<EXFacebook/EXFacebook.h>)
-  if ([EXFacebook facebookAppIdFromNSBundle]) {
-    if ([[FBSDKApplicationDelegate sharedInstance] application:app
-                                                       openURL:url
-                                                       options:options]) {
-      return YES;
-    }
   }
 #endif
   return [[ExpoKit sharedInstance] application:app openURL:url sourceApplication:sourceApplication annotation:annotation];
